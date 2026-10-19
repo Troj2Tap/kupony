@@ -16,6 +16,10 @@ on:
         description: 'Nadpisz istniejące dni (true/false)'
         required: false
         default: 'false'
+      analysis_only:
+        description: 'Tylko analizy meczów, bez pobierania kursów (true/false)'
+        required: false
+        default: 'false'
 permissions:
   contents: write
   pages: write
@@ -33,6 +37,8 @@ jobs:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           DAYS: ${{ github.event.inputs.days }}
           FORCE: ${{ github.event.inputs.force }}
+          ANALYSIS_ONLY: ${{ github.event.inputs.analysis_only }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       - name: Zapisz dane w repozytorium
         run: |
           git config user.name "kupony-bot"
