@@ -65,7 +65,9 @@ async function main() {
   // główne rynki hurtowo: jedno zapytanie na ligę
   let events = [];
   for (const s of leagues) {
-    const list = await api(`/sports/${s.key}/odds`, Object.assign({ regions: 'eu', markets: cfg.bulkMarkets, oddsFormat: 'decimal' }, win));
+    let list;
+    try { list = await api(`/sports/${s.key}/odds`, Object.assign({ regions: 'eu', markets: cfg.bulkMarkets, oddsFormat: 'decimal' }, win)); }
+    catch (e) { if (e.status === 401 || e.status === 429) throw e; console.warn('Pomijam ligę ' + s.title + ': ' + e.message); continue; }
     list.forEach(ev => { const n = normalize(ev, s.title); if (n.books.length) { n.lp = prio(s.key); n.sport = s.key; events.push(n); } });
   }
   events.sort((a, b) => a.lp - b.lp || b.books.length - a.books.length);
