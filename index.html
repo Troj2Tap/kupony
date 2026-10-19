@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kupony Dnia</title>
+<style>
+  :root {
+    --bg:#f3f5f8; --panel:#ffffff; --panel2:#f7f9fb; --line:#e1e6ec; --txt:#14202b; --mut:#64727f;
+    --acc:#0f9d58; --acc-soft:#e3f5ea; --warn:#c77d00; --warn-soft:#fff3d9; --bad:#d93025; --bad-soft:#fde8e6;
+    --shadow:0 1px 2px rgba(16,24,40,.06),0 4px 14px rgba(16,24,40,.05);
+    --c3:#0f9d58; --c5:#1a73e8; --c10:#c77d00; --c50:#d93025;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0d1117; --panel:#161b22; --panel2:#1c232c; --line:#2a323c; --txt:#e6edf3; --mut:#8b98a5;
+      --acc:#3fb950; --acc-soft:#12301c; --warn:#e3a008; --warn-soft:#33270a; --bad:#f85149; --bad-soft:#3a1514;
+      --shadow:none; --c3:#3fb950; --c5:#58a6ff; --c10:#e3a008; --c50:#f85149; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:15px/1.5 system-ui,"Segoe UI",sans-serif; }
+  header { background:var(--panel); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
+  .bar { max-width:1040px; margin:0 auto; padding:12px 16px; display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  .logo { font-weight:800; font-size:20px; letter-spacing:-.3px; margin-right:auto; display:flex; align-items:center; gap:8px; }
+  .logo i { width:28px; height:28px; border-radius:8px; background:linear-gradient(135deg,var(--acc),#1a73e8); display:inline-block; }
+  nav { max-width:1040px; margin:0 auto; padding:0 16px 10px; display:flex; gap:6px; overflow-x:auto; }
+  nav button { background:transparent; color:var(--mut); border:0; padding:8px 14px; border-radius:99px; font:inherit; font-weight:600; cursor:pointer; white-space:nowrap; }
+  nav button.on { background:var(--acc-soft); color:var(--acc); }
+  main { max-width:1040px; margin:0 auto; padding:16px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; box-shadow:var(--shadow); margin-bottom:16px; }
+  .panel h2 { margin:0 0 10px; font-size:17px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  input, select { background:var(--panel2); color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font:inherit; min-width:0; }
+  button.btn { background:var(--acc); color:#fff; border:0; border-radius:9px; padding:9px 15px; font:inherit; font-weight:700; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--txt); border:1px solid var(--line); border-radius:9px; padding:8px 13px; font:inherit; font-weight:600; cursor:pointer; }
+  .mut { color:var(--mut); } .small { font-size:12px; }
+  .status { color:var(--mut); font-size:13px; margin:2px 0 14px; min-height:20px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; }
+  .coupon { background:var(--panel); border:1px solid var(--line); border-top:4px solid var(--cc,var(--acc)); border-radius:14px; padding:14px; box-shadow:var(--shadow); }
+  .coupon .hd { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .coupon h3 { margin:0; font-size:18px; }
+  .kpis { display:flex; gap:18px; margin:10px 0 8px; flex-wrap:wrap; }
+  .kpi b { display:block; font-size:20px; line-height:1.2; } .kpi span { color:var(--mut); font-size:12px; }
+  .leg { border-top:1px solid var(--line); padding:9px 0; display:flex; gap:10px; align-items:flex-start; }
+  .leg .body { flex:1; min-width:0; }
+  .leg .m { color:var(--mut); font-size:12px; }
+  .leg .p { display:flex; justify-content:space-between; gap:8px; font-weight:600; }
+  .mk { display:inline-block; font-size:11px; padding:1px 8px; border-radius:99px; background:var(--panel2); border:1px solid var(--line); color:var(--mut); margin-right:4px; }
+  .tag { font-size:11px; font-weight:700; padding:2px 9px; border-radius:99px; }
+  .t-good { background:var(--acc-soft); color:var(--acc); } .t-mid { background:var(--warn-soft); color:var(--warn); } .t-bad { background:var(--bad-soft); color:var(--bad); }
+  .good { color:var(--acc); } .midc { color:var(--warn); } .badc { color:var(--bad); }
+  .res { width:30px; height:30px; flex:none; border-radius:8px; border:1px solid var(--line); background:var(--panel2); color:var(--mut); cursor:pointer; font-weight:800; }
+  .res.w { background:var(--acc-soft); color:var(--acc); border-color:var(--acc); }
+  .res.l { background:var(--bad-soft); color:var(--bad); border-color:var(--bad); }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th,td { text-align:left; padding:7px 8px; border-top:1px solid var(--line); vertical-align:top; }
+  th { color:var(--mut); font-weight:600; border-top:0; }
+  .scroll { overflow-x:auto; }
+  .empty { text-align:center; padding:34px 10px; color:var(--mut); }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-bottom:16px; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px; border-left:4px solid var(--cc); }
+  .stat b { font-size:20px; display:block; }
+  details.day { background:var(--panel); border:1px solid var(--line); border-radius:12px; margin-bottom:10px; }
+  details.day > summary { cursor:pointer; padding:12px 14px; font-weight:700; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  details.day .inner { padding:0 14px 14px; }
+  .info p, .info li { color:var(--mut); } .info b { color:var(--txt); }
+  .disc { color:var(--mut); font-size:12px; padding:0 16px 30px; max-width:1040px; margin:0 auto; }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="logo"><i></i> Kupony Dnia</div>
+    <div class="row">
+      <button class="ghost" id="prev">‹</button>
+      <input type="date" id="date">
+      <button class="ghost" id="next">›</button>
+      <button class="ghost" id="today">Dziś</button>
+      <button class="ghost" id="tomorrow">Jutro</button>
+    </div>
+  </div>
+  <nav id="tabs">
+    <button data-tab="coupons" class="on">Kupony</button>
+    <button data-tab="events">Zdarzenia</button>
+    <button data-tab="history">Historia</button>
+    <button data-tab="info">Jak to działa</button>
+  </nav>
+</header>
+
+<main>
+  <div class="status" id="status"></div>
+  <section id="tab-coupons"><div id="coupons"></div></section>
+  <section id="tab-events" hidden>
+    <div class="panel">
+      <div class="row" style="margin-bottom:10px">
+        <h2 style="margin:0">Wszystkie zdarzenia piłkarskie</h2>
+        <select id="mfilter" style="margin-left:auto"></select>
+      </div>
+      <div class="scroll"><table id="tbl"></table></div>
+    </div>
+  </section>
+  <section id="tab-history" hidden><div id="stats"></div><div id="hist"></div></section>
+  <section id="tab-info" hidden>
+    <div class="panel info">
+      <h2>Jak to działa</h2>
+      <p>Co noc o <b>23:00</b> serwer pobiera kursy bukmacherów na następny dzień i układa cztery kupony: <b>~3, ~5, ~10 i ~50</b>.</p>
+      <ul>
+        <li>Dla każdego typu liczę szansę z kursów kilku bukmacherów (po usunięciu marży).</li>
+        <li>Kupon dobiera zdarzenia tak, by przy zadanym kursie łączna szansa trafienia była jak największa. Na jeden mecz przypada jeden typ, ale rynki się mieszają: wynik, podwójna szansa, gole, obie strzelą, a dla najważniejszych meczów także rzuty rożne i kartki.</li>
+        <li>Przyciski przy typach (•, ✓, ✗) to Twoje oznaczenia trafień. Zapisują się w tej przeglądarce i zasilają statystyki w Historii.</li>
+      </ul>
+      <div class="row"><button class="ghost" id="demo">Pokaż podgląd demo dla wybranego dnia</button><button class="ghost" id="wipe">Usuń moje oznaczenia trafień</button></div>
+    </div>
+  </section>
+</main>
+<div class="disc">Szanse to szacunki z kursów rynkowych (konsensus bukmacherów bez marży), nie gwarancja wyniku. Kupon z wysokim kursem łącznym ma z natury niską szansę wygranej. Graj odpowiedzialnie, tylko za pieniądze, których utrata Cię nie zaboli. 18+.</div>
+
+<script src="core.js"></script>
+<script>
+const { TARGETS, MARKETS } = Core;
+const TCOLOR = {3:'var(--c3)',5:'var(--c5)',10:'var(--c10)',50:'var(--c50)'};
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+};
+const dkey = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+const parseKey = k => { const [y,m,d] = k.split('-').map(Number); return new Date(y, m-1, d); };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const fmtDate = k => parseKey(k).toLocaleDateString('pl-PL', {weekday:'short', day:'numeric', month:'long'});
+const fmtTime = iso => new Date(iso).toLocaleTimeString('pl-PL', {hour:'2-digit', minute:'2-digit'});
+
+/* ---------- stan ---------- */
+let index = [], days = {}, openDays = new Set();
+let res; try { res = JSON.parse(store.get('res') || '{}'); } catch(e) { res = {}; }
+let sel = dkey(new Date());
+
+async function loadIndex() {
+  try { const r = await fetch('data/index.json?t=' + Date.now()); index = r.ok ? await r.json() : []; } catch(e) { index = []; }
+}
+function applyRes(d, j) {
+  j.coupons.forEach((c, ci) => c.legs.forEach((l, li) => { const v = (res[d] || {})[ci + '-' + li]; l.res = v === undefined ? null : v; }));
+}
+async function loadDay(d) {
+  if (days[d]) return days[d];
+  if (!index.includes(d)) return null;
+  try { const r = await fetch('data/' + d + '.json'); if (r.ok) { const j = await r.json(); applyRes(d, j); days[d] = j; } } catch(e) {}
+  return days[d] || null;
+}
+
+/* ---------- dane demo ---------- */
+function demoEvents(date) {
+  let seed = [...date].reduce((a,c) => (a*31 + c.charCodeAt(0)) >>> 0, 7);
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const pool = [['Ekstraklasa','Legia Warszawa','Cracovia'],['Ekstraklasa','Lech Poznań','Pogoń Szczecin'],['Premier League','Arsenal','Brentford'],
+    ['Premier League','Man City','Wolves'],['La Liga','Real Madrid','Getafe'],['La Liga','Sevilla','Valencia'],['Bundesliga','Bayern Monachium','Mainz'],
+    ['Serie A','Inter','Torino'],['Ligue 1','PSG','Nantes'],['Liga Mistrzów','Barcelona','Galatasaray']];
+  const books = ['Fortuna','STS','Superbet','Betclic'];
+  const sig = x => 1 / (1 + Math.exp(-x));
+  return pool.map(([league, h, a], i) => {
+    let ph = 0.3 + rnd()*0.45, pd = 0.17 + rnd()*0.1, pa = 1 - ph - pd; if (pa < 0.06) { pa = 0.06; ph = 1 - pd - pa; }
+    const gm = 2.1 + rnd()*1.1, cm = 8.6 + rnd()*3, km = 3.4 + rnd()*2.4, pbtts = 0.4 + rnd()*0.25;
+    const over = (m, L, s) => sig((m - L) / s);
+    const groups = [
+      ['h2h', null, { [h]: ph, 'Draw': pd, [a]: pa }],
+      ['double_chance', null, { [h + ' or Draw']: ph + pd, [h + ' or ' + a]: ph + pa, ['Draw or ' + a]: pd + pa }],
+      ['btts', null, { Yes: pbtts, No: 1 - pbtts }]
+    ];
+    [1.5, 2.5, 3.5].forEach(L => { const p = over(gm, L, 0.9); groups.push(['totals', L, { Over: p, Under: 1 - p }]); });
+    [8.5, 9.5, 10.5].forEach(L => { const p = over(cm, L, 1.7); groups.push(['alternate_totals_corners', L, { Over: p, Under: 1 - p }]); });
+    [3.5, 4.5, 5.5].forEach(L => { const p = over(km, L, 1.1); groups.push(['alternate_totals_cards', L, { Over: p, Under: 1 - p }]); });
+    const t = parseKey(date); t.setHours(15 + (i % 6), (i * 15) % 60, 0, 0);
+    return { id: 'd' + i, league, home: h, away: a, time: t.toISOString(),
+      books: books.map(name => {
+        const margin = 1.04 + rnd()*0.04, ms = {};
+        for (const [mk, pt, probs] of groups) {
+          (ms[mk] ||= { key: mk, outcomes: [] });
+          for (const k in probs) ms[mk].outcomes.push({ name: k, price: Math.max(1.04, +(1 / (probs[k] * margin * (0.96 + rnd()*0.08))).toFixed(2)), point: pt === null ? undefined : pt });
+        }
+        return { name, markets: Object.values(ms) };
+      }) };
+  });
+}
+function makeDemo(d) {
+  const ev = demoEvents(d), b = Core.build(ev, {});
+  days[d] = { date: d, generated: new Date().toISOString(), demo: true, events: ev.length, coupons: b.coupons.map(c => ({ ...c, legs: c.legs.map(l => ({ ...l, res: null })) })), legs: b.legs.sort((a,c) => c.p - a.p).slice(0, 300) };
+}
+
+/* ---------- widoki ---------- */
+const risk = p => p >= 0.3 ? ['niskie','t-good','good'] : p >= 0.08 ? ['średnie','t-mid','midc'] : ['wysokie','t-bad','badc'];
+const status = c => c.legs.some(l => l.res === 0) ? 'lost' : c.legs.every(l => l.res === 1) ? 'won' : 'open';
+const STAT = { won:['Wygrany','t-good'], lost:['Przegrany','t-bad'], open:['Otwarty','t-mid'] };
+
+function couponCard(c, date, idx) {
+  const [rl, rt, rc] = risk(c.prob), s = STAT[status(c)];
+  return `<div class="coupon" style="--cc:${TCOLOR[c.target]}">
+    <div class="hd"><h3>Kupon ~${c.target}</h3><span><span class="tag ${s[1]}">${s[0]}</span> <span class="tag ${rt}">ryzyko ${rl}</span></span></div>
+    <div class="kpis">
+      <div class="kpi"><b>${c.odds.toFixed(2)}</b><span>kurs łączny</span></div>
+      <div class="kpi"><b class="${rc}">${(c.prob*100).toFixed(1)}%</b><span>szansa trafienia</span></div>
+      <div class="kpi"><b>${c.legs.length}</b><span>zdarzeń</span></div>
+    </div>` + c.legs.map((l, j) => `<div class="leg">
+      <div class="body"><div class="m">${esc(l.league)} · ${fmtTime(l.time)} · ${esc(l.match)}</div>
+        <div class="p"><span><span class="mk">${esc(l.market)}</span>${esc(l.pick)}</span><span>${l.odds.toFixed(2)} <span class="mut small">(${(l.p*100).toFixed(0)}%)</span></span></div>
+        <div class="m">najlepszy kurs: ${esc(l.book)}</div></div>
+      <button class="res ${l.res === 1 ? 'w' : l.res === 0 ? 'l' : ''}" title="Oznacz: trafiony / nietrafiony" data-d="${date}" data-c="${idx}" data-l="${j}">${l.res === 1 ? '✓' : l.res === 0 ? '✗' : '•'}</button>
+    </div>`).join('') + `</div>`;
+}
+
+function renderCoupons() {
+  const d = days[sel], box = $('coupons');
+  if (!d) {
+    const future = sel > dkey(new Date());
+    box.innerHTML = `<div class="panel empty"><p>Kupony na <b>${esc(fmtDate(sel))}</b> ${future ? 'zostaną wygenerowane automatycznie o 23:00 dzień wcześniej.' : 'nie zostały wygenerowane.'}</p>
+      <button class="ghost" id="gdemo">Pokaż podgląd demo</button></div>`;
+    $('gdemo').onclick = () => { makeDemo(sel); go(); };
+    setStatus(''); return;
+  }
+  setStatus(d.demo ? 'Podgląd na danych przykładowych.' : `Wygenerowano ${new Date(d.generated).toLocaleString('pl-PL', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})} · meczów: ${d.events}`);
+  box.innerHTML = `<div class="row" style="margin-bottom:14px"><span class="tag ${d.demo ? 't-mid' : 't-good'}">${d.demo ? 'DANE DEMO' : 'KURSY NA ŻYWO'}</span>
+    <span class="mut small">${esc(fmtDate(sel))}</span></div>` +
+    (d.coupons.length ? `<div class="grid">${d.coupons.map((c,i) => couponCard(c, sel, i)).join('')}</div>` : `<div class="panel empty">Brak wystarczających danych, aby ułożyć kupony.</div>`);
+}
+const setStatus = t => $('status').textContent = t;
+
+function renderEvents() {
+  const sf = $('mfilter'), cur = sf.value;
+  sf.innerHTML = '<option value="">Wszystkie rynki</option>' + Object.keys(MARKETS).map(k => `<option value="${k}">${MARKETS[k].label}</option>`).join('');
+  sf.value = cur;
+  const d = days[sel];
+  if (!d) { $('tbl').innerHTML = '<tr><td class="empty">Brak danych na ten dzień.</td></tr>'; return; }
+  const legs = d.legs.filter(l => !sf.value || l.mk === sf.value);
+  $('tbl').innerHTML = '<tr><th>Godz.</th><th>Mecz</th><th>Rynek</th><th>Typ</th><th>Szansa</th><th>Kurs</th><th>Bukmacher</th><th>Wartość</th></tr>' +
+    legs.map(l => `<tr><td>${fmtTime(l.time)}</td><td>${esc(l.match)}<div class="mut small">${esc(l.league)}</div></td><td>${esc(l.market)}</td><td>${esc(l.pick)}</td>
+      <td>${(l.p*100).toFixed(1)}%</td><td>${l.odds.toFixed(2)}</td><td>${esc(l.book)}</td>
+      <td class="${l.edge > 0.02 ? 'good' : ''}">${l.edge >= 0 ? '+' : ''}${(l.edge*100).toFixed(1)}%</td></tr>`).join('');
+}
+
+async function renderHistory() {
+  await Promise.all(index.slice(-90).map(loadDay));
+  const dates = index.filter(d => days[d]).sort().reverse();
+  let stats = '';
+  if (dates.length) {
+    stats = '<div class="stats">';
+    for (const t of TARGETS) {
+      let won = 0, lost = 0, open = 0, profit = 0;
+      dates.forEach(d => days[d].coupons.filter(c => c.target === t).forEach(c => {
+        const s = status(c);
+        if (s === 'won') { won++; profit += c.odds - 1; } else if (s === 'lost') { lost++; profit -= 1; } else open++;
+      }));
+      stats += `<div class="stat" style="--cc:${TCOLOR[t]}"><span class="mut small">Kupon ~${t}</span><b>${won}/${won + lost} <span class="mut small">wygranych</span></b>
+        <span class="small mut">otwartych: ${open} · wynik przy stawce 1 zł: <b class="${profit >= 0 ? 'good' : 'badc'}" style="display:inline;font-size:13px">${profit >= 0 ? '+' : ''}${profit.toFixed(2)}</b></span></div>`;
+    }
+    let sl = 0, hit = 0, pp = 0;
+    dates.forEach(d => days[d].coupons.forEach(c => c.legs.forEach(l => { if (l.res !== null) { sl++; hit += l.res; pp += l.p; } })));
+    stats += `<div class="stat" style="--cc:var(--mut)"><span class="mut small">Skuteczność pojedynczych typów</span><b>${sl ? (hit/sl*100).toFixed(0) + '%' : '–'}</b>
+      <span class="small mut">${sl ? `oczekiwano ${(pp/sl*100).toFixed(0)}% (z ${sl} rozliczonych)` : 'oznaczaj typy na kuponach, aby zobaczyć'}</span></div></div>`;
+  }
+  $('stats').innerHTML = stats;
+  $('hist').innerHTML = dates.length ? dates.map(d => {
+    const cs = days[d].coupons, won = cs.filter(c => status(c) === 'won').length, lost = cs.filter(c => status(c) === 'lost').length;
+    return `<details class="day" data-d="${d}" ${openDays.has(d) ? 'open' : ''}><summary>${esc(fmtDate(d))}
+      <span class="mut small">wygrane ${won} · przegrane ${lost} · otwarte ${cs.length - won - lost}</span>
+      <button class="ghost small" style="margin-left:auto" data-open="${d}">Pokaż w kuponach</button></summary>
+      <div class="inner"><div class="grid">${cs.map((c,i) => couponCard(c, d, i)).join('')}</div></div></details>`;
+  }).join('') : '<div class="panel empty">Historia jest pusta. Kupony pojawią się tu po pierwszym automatycznym generowaniu.</div>';
+}
+
+async function go() { $('date').value = sel; await loadDay(sel); renderCoupons(); renderEvents(); await renderHistory(); }
+
+/* ---------- zdarzenia UI ---------- */
+function setTab(t) {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  ['coupons','events','history','info'].forEach(x => $('tab-' + x).hidden = x !== t);
+}
+$('tabs').onclick = e => { if (e.target.dataset.tab) setTab(e.target.dataset.tab); };
+$('date').onchange = e => { if (e.target.value) { sel = e.target.value; go(); } };
+$('prev').onclick = () => { sel = dkey(addDays(parseKey(sel), -1)); go(); };
+$('next').onclick = () => { sel = dkey(addDays(parseKey(sel), 1)); go(); };
+$('today').onclick = () => { sel = dkey(new Date()); go(); };
+$('tomorrow').onclick = () => { sel = dkey(addDays(new Date(), 1)); go(); };
+$('mfilter').onchange = renderEvents;
+$('demo').onclick = () => { makeDemo(sel); setTab('coupons'); go(); };
+$('wipe').onclick = () => { if (confirm('Usunąć wszystkie Twoje oznaczenia trafień?')) { res = {}; store.set('res', '{}'); days = {}; go(); } };
+document.addEventListener('toggle', e => {
+  if (e.target.matches && e.target.matches('details.day')) { e.target.open ? openDays.add(e.target.dataset.d) : openDays.delete(e.target.dataset.d); }
+}, true);
+document.addEventListener('click', e => {
+  const r = e.target.closest('.res');
+  if (r) {
+    const d = r.dataset.d, l = days[d].coupons[+r.dataset.c].legs[+r.dataset.l];
+    l.res = l.res === null ? 1 : l.res === 1 ? 0 : null;
+    if (!days[d].demo) {
+      const k = r.dataset.c + '-' + r.dataset.l; (res[d] ||= {});
+      if (l.res === null) delete res[d][k]; else res[d][k] = l.res;
+      store.set('res', JSON.stringify(res));
+    }
+    renderCoupons(); renderHistory();
+    return;
+  }
+  const o = e.target.closest('[data-open]');
+  if (o) { e.preventDefault(); sel = o.dataset.open; setTab('coupons'); go(); }
+});
+
+(async () => {
+  await loadIndex();
+  const today = dkey(new Date()), tom = dkey(addDays(new Date(), 1));
+  if (!index.includes(today) && index.includes(tom)) sel = tom;
+  else if (!index.includes(today) && index.length) sel = index[index.length - 1];
+  go();
+})();
+</script>
+</body>
+</html>

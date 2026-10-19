@@ -1,0 +1,9 @@
+{
+  "runHour": 23,
+  "maxLeagues": 3,
+  "topMatches": 8,
+  "extraMatches": 2,
+  "bulkMarkets": "h2h,totals,btts,double_chance",
+  "extraMarkets": "alternate_totals_corners,alternate_totals_cards",
+  "minBooks": 2
+}
