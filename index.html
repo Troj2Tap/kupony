@@ -243,21 +243,74 @@ async function loadAnalysis(d) {
   try { const r = await fetch('data/analysis/' + d + '.json?t=' + Date.now()); if (r.ok) ana[d] = await r.json(); } catch(e) {}
   return ana[d];
 }
-const hasAnalysis = (d, m) => !!(ana[d] && ana[d].matches && ana[d].matches[m]);
+const hasAnalysis = (d, m) => !!(days[d] && days[d].legs && days[d].legs.some(l => l.match === m));
+
+/* darmowa analiza z kursów: styl i przebieg meczu wyciągnięty z szans rynkowych */
+const pc = x => Math.round(x * 100) + '%';
+function marketAnalysis(d, match) {
+  const L = d.legs.filter(l => l.match === match);
+  if (!L.length) return null;
+  const [home, away] = match.split(' – ');
+  const g = (market, pick) => { const l = L.find(x => x.market === market && x.pick === pick); return l ? l.p : null; };
+  let ph = g('Wynik 1X2', home), pd = g('Wynik 1X2', 'Remis'), pa = g('Wynik 1X2', away);
+  const miss = [ph, pd, pa].filter(v => v === null).length;
+  if (miss === 1) { const m = 1 - [ph, pd, pa].reduce((s, v) => s + (v || 0), 0); if (ph === null) ph = m; else if (pd === null) pd = m; else pa = m; }
+  const out = {};
+  let fav = null, favP = 0;
+  if (ph !== null && pd !== null && pa !== null) {
+    [[home, ph], [away, pa]].forEach(([n, p]) => { if (p > favP) { fav = n; favP = p; } });
+    const lvl = favP >= 0.6 ? 'wyraźnego faworyta' : favP >= 0.45 ? 'umiarkowanego faworyta' : 'wyrównany układ sił';
+    out.rynek = `Rynek wskazuje ${lvl}: ${home} ${pc(ph)}, remis ${pc(pd)}, ${away} ${pc(pa)}.` + (favP < 0.45 ? ' Żadna z drużyn nie ma wyraźnej przewagi, więc pierwsza bramka i stałe fragmenty mogą zdecydować.' : ` ${fav} jest zdecydowanie bliżej zwycięstwa, a remis (${pc(pd)}) ${pd > 0.28 ? 'jest realnym scenariuszem' : 'jest mniej prawdopodobny'}.`);
+  }
+  const o15 = g('Gole', 'Powyżej 1.5'), o25 = g('Gole', 'Powyżej 2.5'), o35 = g('Gole', 'Powyżej 3.5'), bt = g('Obie strzelą', 'Tak');
+  const bits = [];
+  if (o15 !== null) bits.push(`2 lub więcej goli ${pc(o15)}`);
+  if (o25 !== null) bits.push(`3 lub więcej ${pc(o25)}`);
+  if (o35 !== null) bits.push(`4 lub więcej ${pc(o35)}`);
+  if (bt !== null) bits.push(`obie drużyny strzelą ${pc(bt)}`);
+  if (bits.length) {
+    const open = o25 !== null ? o25 : null;
+    out.tempo = 'Szanse z rynku: ' + bits.join(', ') + '.' + (open === null ? '' : open >= 0.58 ? ' To wskazuje na otwarty mecz z wysokim tempem i wieloma sytuacjami.' : open <= 0.42 ? ' To wskazuje na mecz zamknięty, kontrolowany, z małą liczbą goli.' : ' Rynek nie przesądza o tempie, to raczej średnia liczba goli.');
+  }
+  const line = (market, name) => {
+    const ov = L.filter(l => l.market === market && l.pick.startsWith('Powyżej ')).sort((a, b) => Math.abs(a.p - 0.5) - Math.abs(b.p - 0.5))[0];
+    return ov ? `${name}: linia ${ov.pick.replace('Powyżej ', '')} (powyżej ${pc(ov.p)}).` : null;
+  };
+  const st = [line('Rzuty rożne', 'Rzuty rożne'), line('Kartki', 'Kartki')].filter(Boolean);
+  out.stale_fragmenty = st.length ? st.join(' ') + ' Wyższa linia rożnych oznacza więcej gry skrzydłami i dośrodkowań, a wyższa linia kartek ostrzejszy, bardziej przerywany mecz.' : 'Brak notowań rzutów rożnych i kartek dla tego meczu (pobieram je tylko dla najważniejszych spotkań).';
+  if (fav) {
+    const closed = o25 !== null && o25 < 0.5;
+    out.scenariusze = `Scenariusz A, szybka bramka: jeśli pierwszy gol padnie po stronie ${fav}, rywal musi się odkryć i rośnie szansa na kolejne gole z kontr. Jeśli zdobędzie go słabsza strona, mecz mocno się komplikuje, a faworyt (${pc(favP)}) będzie musiał szukać wyrównania. Scenariusz B, mecz zamknięty: ` + (closed ? 'rynek skłania się ku małej liczbie goli, więc to scenariusz bazowy, a remis lub minimalna wygrana są mocno prawdopodobne.' : 'jest mniej prawdopodobny, bo rynek zakłada ponad 2 gole, ale przy nastawieniu defensywnym faworyta może zdecydować jedna bramka.');
+  }
+  const bestRes = fav !== null ? (pd > favP ? 'remis' : fav) : null;
+  const prog = [];
+  if (bestRes) prog.push(`najbardziej prawdopodobny wynik 1X2: ${bestRes} (${pc(Math.max(pd, favP))})`);
+  if (o25 !== null) prog.push(o25 >= 0.5 ? `powyżej 2.5 gola (${pc(o25)})` : `poniżej 2.5 gola (${pc(1 - o25)})`);
+  if (bt !== null) prog.push(bt >= 0.5 ? `obie strzelą: tak (${pc(bt)})` : `obie strzelą: nie (${pc(1 - bt)})`);
+  if (prog.length) out.prognoza = prog.join('; ') + '.';
+  return out;
+}
+const MSEC = [['rynek','Układ sił (rynek 1X2)'],['tempo','Tempo i gole'],['stale_fragmenty','Rzuty rożne i kartki'],['scenariusze','Scenariusze meczowe'],['prognoza','Prognoza z rynku']];
 const SEC = [['forma','Kontekst i forma'],['taktyka','Starcie taktyczne'],['pojedynki','Kluczowe pojedynki i x-factor'],['stale_fragmenty','Stałe fragmenty gry i detale'],['scenariusze','Scenariusze meczowe'],['prognoza','Podsumowanie i prognoza']];
 const PEW = { wysoka:'t-good', srednia:'t-mid', niska:'t-bad' };
 function renderAnalysis(openMatch) {
-  const a = ana[sel], box = $('analysis');
-  if (!a || !a.matches || !Object.keys(a.matches).length) {
-    box.innerHTML = `<div class="panel empty">Brak analiz meczów na ${esc(fmtDate(sel))}. Pojawiają się razem z kuponami (wymagają klucza Claude API w ustawieniach automatu).</div>`; return;
+  const d = days[sel], a = ana[sel], box = $('analysis');
+  if (!d || !d.legs || !d.legs.length) {
+    box.innerHTML = `<div class="panel empty">Brak danych na ${esc(fmtDate(sel))}.</div>`; return;
   }
-  const items = Object.entries(a.matches).sort((x, y) => x[1].time.localeCompare(y[1].time));
-  box.innerHTML = `<p class="mut small">Analizy przygotowane przez model ${esc(a.model || 'Claude')} z użyciem wyszukiwania w sieci. Mogą zawierać błędy, więc sprawdzaj składy i kontuzje tuż przed meczem.</p>` +
-    items.map(([m, x]) => `<details class="day an" data-m="${esc(m)}" ${m === openMatch ? 'open' : ''}><summary>${esc(m)}
-      <span class="mut small">${esc(x.league)} · ${fmtTime(x.time)}</span>
-      ${x.pewnosc ? `<span class="tag ${PEW[x.pewnosc] || 't-mid'}" style="margin-left:auto">pewność danych: ${esc(x.pewnosc)}</span>` : ''}</summary>
-      <div class="inner">${SEC.map(([k, t]) => x[k] ? `<h4>${t}</h4><p>${esc(x[k])}</p>` : '').join('')}
-      ${x.uwagi ? `<p class="mut small">${esc(x.uwagi)}</p>` : ''}</div></details>`).join('');
+  const seen = new Map();
+  d.legs.forEach(l => { if (!seen.has(l.match)) seen.set(l.match, { league: l.league, time: l.time }); });
+  const items = [...seen].sort((x, y) => x[1].time.localeCompare(y[1].time));
+  const hasAI = a && a.matches && Object.keys(a.matches).length;
+  box.innerHTML = `<p class="mut small">Analiza z rynku kursów (darmowa): pokazuje układ sił, tempo, rożne, kartki, scenariusze i prognozę wyliczone z szans bukmacherów. Nie uwzględnia formy, kontuzji ani taktyki.${hasAI ? ' Dla części meczów jest też pełna analiza modelu Claude (z wyszukiwaniem w sieci), sprawdzaj składy tuż przed meczem.' : ''}</p>` +
+    items.map(([m, v]) => {
+      const x = hasAI ? a.matches[m] : null, mk = marketAnalysis(d, m) || {};
+      return `<details class="day an" data-m="${esc(m)}" ${m === openMatch ? 'open' : ''}><summary>${esc(m)}
+      <span class="mut small">${esc(v.league)} · ${fmtTime(v.time)}</span>
+      ${x ? `<span class="tag t-good" style="margin-left:auto">analiza AI</span>` : ''}</summary>
+      <div class="inner">${x ? SEC.map(([k, t]) => x[k] ? `<h4>${t}</h4><p>${esc(x[k])}</p>` : '').join('') + (x.uwagi ? `<p class="mut small">${esc(x.uwagi)}</p>` : '') + '<h4 style="margin-top:22px">Dane z rynku kursów</h4>' : ''}
+      ${MSEC.map(([k, t]) => mk[k] ? `<h4>${t}</h4><p>${esc(mk[k])}</p>` : '').join('')}</div></details>`;
+    }).join('');
 }
 const setStatus = t => $('status').textContent = t;
 
