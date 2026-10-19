@@ -46,7 +46,99 @@ async function main() {
   if (scheduled && now.hour !== cfg.runHour && now.hour !== h2) { console.log('Nie ta godzina (' + now.hour + '), pomijam.'); return; }
   const first = process.argv[2] || (scheduled ? (now.hour === cfg.runHour ? addDays(now.date, 1) : now.date) : (now.hour >= 12 ? addDays(now.date, 1) : now.date));
   const nDays = Math.max(1, Math.min(7, parseInt(process.env.DAYS, 10) || 1));
-  for (let i = 0; i < nDays; i++) await generateDay(addDays(first, i), now, scheduled);
+  for (let i = 0; i < nDays; i++) {
+    const d = addDays(first, i);
+    if (process.env.ANALYSIS_ONLY === 'true') {
+      const f = path.join(ROOT, 'data', d + '.json');
+      if (!fs.existsSync(f)) { console.log('Brak danych dla ' + d + ', pomijam analizy.'); continue; }
+      const day = JSON.parse(fs.readFileSync(f, 'utf8'));
+      await analyzeMatches(d, day.coupons, day.legs);
+    } else await generateDay(d, now, scheduled);
+  }
+}
+
+/* ---------- analizy meczów (Claude API + wyszukiwanie w sieci) ---------- */
+const SYSTEM = `Jesteś doświadczonym, profesjonalnym analitykiem sportowym i strategiem taktycznym. Przeprowadzasz dogłębną, obiektywną analizę nadchodzącego meczu piłkarskiego, popartą danymi.
+Podejście: chłodne, analityczne spojrzenie bez emocji kibica i truizmów; nacisk na taktykę, profile zawodników, strukturę gry i statystyki; zrozumienie kontekstu (forma, kontuzje, stawka, presja).
+Używaj wyszukiwania w sieci, aby sprawdzić aktualną formę, absencje, przewidywane składy i style gry. Pisz wyłącznie fakty, które potwierdziłeś; niczego nie zmyślaj. Jeśli czegoś nie udało się ustalić (np. składu), napisz to wprost zamiast zgadywać.
+Odpowiadasz po polsku. Twoja ostatnia wiadomość ma być WYŁĄCZNIE jednym obiektem JSON, bez żadnego tekstu przed ani po.`;
+
+function analysisPrompt(m, market) {
+  return `Przeanalizuj mecz: ${m.match} (${m.league}), początek ${new Date(m.time).toLocaleString('pl-PL', { timeZone: TZ })}.
+Rynkowe szanse z kursów bukmacherów (kontekst, nie dowód): ${market || 'brak'}.
+
+Struktura analizy (każde pole: konkretny tekst, 2-5 zdań, bez ogólników):
+- "forma": ostatnie 5 meczów obu drużyn i bilans bramkowy/punktowy, kluczowe absencje (kontuzje, zawieszenia) i ich wpływ na strukturę zespołu, stawka meczu i nastawienie psychologiczne.
+- "taktyka": dominujące systemy gry i jak na siebie nachodzą, gdzie rozstrzygnie się mecz (kluczowe strefy), budowanie ataku vs pressing rywala, przejście z ataku do obrony.
+- "pojedynki": 2-3 kluczowe pojedynki indywidualne oraz zawodnik będący "x-factorem".
+- "stale_fragmenty": skuteczność i zagrożenie przy rzutach rożnych i wolnych obu stron; jeśli masz dane o kartkach i faulach, dodaj krótko.
+- "scenariusze": scenariusz A (szybka pierwsza bramka) oraz scenariusz B (mecz defensywny i zamknięty).
+- "prognoza": prawdopodobny styl i tempo meczu oraz najbardziej prawdopodobne rozstrzygnięcie z krótkim uzasadnieniem punktowym.
+- "pewnosc": "wysoka", "srednia" lub "niska" (jak dobre dane udało się znaleźć).
+- "uwagi": jedno zdanie o brakach w danych (np. niepotwierdzone składy).
+Zwróć jeden obiekt JSON z dokładnie tymi kluczami.`;
+}
+
+async function claudeAnalysis(m, market) {
+  const messages = [{ role: 'user', content: analysisPrompt(m, market) }];
+  for (let turn = 0; turn < 4; turn++) {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: cfg.analysisModel, max_tokens: 8000, output_config: { effort: 'medium' }, system: SYSTEM,
+        tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: cfg.analysisMaxSearches }], messages
+      }),
+      signal: AbortSignal.timeout(300000)
+    });
+    if (!r.ok) throw new Error('Claude API ' + r.status + ': ' + (await r.text()).slice(0, 200));
+    const j = await r.json();
+    if (j.stop_reason === 'refusal') throw new Error('model odmówił odpowiedzi');
+    if (j.stop_reason === 'pause_turn') { messages.splice(1, 1, { role: 'assistant', content: j.content }); continue; }
+    const texts = j.content.filter(b => b.type === 'text').map(b => b.text);
+    for (let i = texts.length - 1; i >= 0; i--) {
+      const a = texts[i].indexOf('{'), b = texts[i].lastIndexOf('}');
+      if (a < 0 || b < a) continue;
+      try { const o = JSON.parse(texts[i].slice(a, b + 1)); if (o.prognoza) return o; } catch (e) { /* próbuj poprzedni blok */ }
+    }
+    throw new Error('brak poprawnego JSON w odpowiedzi (stop_reason: ' + j.stop_reason + ')');
+  }
+  throw new Error('zbyt wiele przerw pause_turn');
+}
+
+function marketSummary(legs, match) {
+  const L = (legs || []).filter(l => l.match === match);
+  const pick = (market, pt) => L.filter(l => l.market === market && (!pt || l.pick === pt));
+  const pct = l => l.pick + ' ' + Math.round(l.p * 100) + '%';
+  const parts = [];
+  const x12 = pick('Wynik 1X2'); if (x12.length) parts.push('1X2: ' + x12.map(pct).join(', '));
+  const g = pick('Gole', 'Powyżej 2.5')[0]; if (g) parts.push('gole powyżej 2.5: ' + Math.round(g.p * 100) + '%');
+  const b = pick('Obie strzelą', 'Tak')[0]; if (b) parts.push('obie strzelą: ' + Math.round(b.p * 100) + '%');
+  return parts.join('; ');
+}
+
+async function analyzeMatches(date, coupons, legs) {
+  if (!process.env.ANTHROPIC_API_KEY) { console.log('Brak ANTHROPIC_API_KEY, pomijam analizy meczów.'); return; }
+  const dir = path.join(ROOT, 'data', 'analysis'); fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, date + '.json');
+  let store = { date, model: cfg.analysisModel, matches: {} };
+  try { if (fs.existsSync(file)) store = Object.assign(store, JSON.parse(fs.readFileSync(file, 'utf8'))); } catch (e) { /* zaczynamy od nowa */ }
+  const freq = new Map();
+  coupons.forEach(c => c.legs.forEach(l => { const x = freq.get(l.match) || { match: l.match, league: l.league, time: l.time, n: 0 }; x.n++; freq.set(l.match, x); }));
+  const todo = [...freq.values()].sort((a, b) => b.n - a.n).slice(0, cfg.analysisMatches)
+    .filter(m => process.env.FORCE === 'true' || !store.matches[m.match]);
+  console.log(`Analizy ${date}: do zrobienia ${todo.length}`);
+  for (let i = 0; i < todo.length; i += cfg.analysisConcurrency) {
+    await Promise.all(todo.slice(i, i + cfg.analysisConcurrency).map(async m => {
+      try {
+        const a = await claudeAnalysis(m, marketSummary(legs, m.match));
+        store.matches[m.match] = Object.assign({ league: m.league, time: m.time, generated: new Date().toISOString() }, a);
+        console.log('  OK: ' + m.match);
+      } catch (e) { console.warn('  Błąd analizy ' + m.match + ': ' + e.message); }
+    }));
+  }
+  store.model = cfg.analysisModel;
+  fs.writeFileSync(file, JSON.stringify(store));
 }
 
 async function generateDay(date, now, scheduled) {
@@ -101,5 +193,6 @@ async function generateDay(date, now, scheduled) {
   const files = fs.readdirSync(dataDir).filter(f => /^\d{4}-\d{2}-\d{2}\.json$/.test(f)).map(f => f.slice(0, 10)).sort();
   fs.writeFileSync(path.join(dataDir, 'index.json'), JSON.stringify(files));
   console.log(`Gotowe: ${events.length} meczów, ${coupons.length} kuponów. Pozostałe kredyty API: ${remaining}`);
+  await analyzeMatches(date, out.coupons, out.legs);
 }
 main().catch(e => { console.error('Błąd:', e.message); process.exit(1); });
