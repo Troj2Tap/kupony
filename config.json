@@ -5,5 +5,9 @@
   "extraMatches": 2,
   "bulkMarkets": "h2h,totals",
   "extraMarkets": "btts,double_chance,alternate_totals_corners,alternate_totals_cards",
-  "minBooks": 2
+  "minBooks": 2,
+  "analysisModel": "claude-sonnet-5-5",
+  "analysisMatches": 6,
+  "analysisMaxSearches": 2,
+  "analysisConcurrency": 3
 }

@@ -37,7 +37,10 @@
   .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; }
   .coupon { background:var(--panel); border:1px solid var(--line); border-top:4px solid var(--cc,var(--acc)); border-radius:14px; padding:14px; box-shadow:var(--shadow); }
   .coupon .hd { display:flex; justify-content:space-between; align-items:center; gap:8px; }
-  .coupon h3 { margin:0; font-size:18px; }
+  .coupon .hd { flex-wrap:wrap; }
+  .coupon .hd > span { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .coupon h3 { margin:0; font-size:18px; white-space:nowrap; }
+  button.copy { padding:2px 9px; border-radius:99px; }
   .kpis { display:flex; gap:18px; margin:10px 0 8px; flex-wrap:wrap; }
   .kpi b { display:block; font-size:20px; line-height:1.2; } .kpi span { color:var(--mut); font-size:12px; }
   .leg { border-top:1px solid var(--line); padding:9px 0; display:flex; gap:10px; align-items:flex-start; }
@@ -63,6 +66,10 @@
   details.day > summary { cursor:pointer; padding:12px 14px; font-weight:700; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
   details.day .inner { padding:0 14px 14px; }
   .info p, .info li { color:var(--mut); } .info b { color:var(--txt); }
+  .gh { font-size:18px; margin:22px 0 10px; padding-left:10px; border-left:4px solid var(--cc); }
+  details.an h4 { margin:14px 0 2px; font-size:14px; color:var(--acc); }
+  details.an p { margin:0; }
+  .alink { font-size:12px; color:var(--c5); text-decoration:none; font-weight:600; }
   .disc { color:var(--mut); font-size:12px; padding:0 16px 30px; max-width:1040px; margin:0 auto; }
 </style>
 </head>
@@ -80,6 +87,7 @@
   </div>
   <nav id="tabs">
     <button data-tab="coupons" class="on">Kupony</button>
+    <button data-tab="analysis">Analizy meczów</button>
     <button data-tab="events">Zdarzenia</button>
     <button data-tab="history">Historia</button>
     <button data-tab="info">Jak to działa</button>
@@ -89,6 +97,7 @@
 <main>
   <div class="status" id="status"></div>
   <section id="tab-coupons"><div id="coupons"></div></section>
+  <section id="tab-analysis" hidden><div id="analysis"></div></section>
   <section id="tab-events" hidden>
     <div class="panel">
       <div class="row" style="margin-bottom:10px">
@@ -106,6 +115,7 @@
       <ul>
         <li>Dla każdego typu liczę szansę z kursów kilku bukmacherów (po usunięciu marży).</li>
         <li>Kupon dobiera zdarzenia tak, by przy zadanym kursie łączna szansa trafienia była jak największa. Na jeden mecz przypada jeden typ, ale rynki się mieszają: wynik, podwójna szansa, gole, obie strzelą, a dla najważniejszych meczów także rzuty rożne i kartki.</li>
+        <li>Dla najważniejszych meczów model Claude (z wyszukiwaniem w sieci) pisze analizę: forma i absencje, taktyka, pojedynki, stałe fragmenty, scenariusze i prognoza. Znajdziesz ją w zakładce <b>Analizy meczów</b> lub przez link „analiza meczu” przy typie.</li>
         <li>Przyciski przy typach (•, ✓, ✗) to Twoje oznaczenia trafień. Zapisują się w tej przeglądarce i zasilają statystyki w Historii.</li>
       </ul>
       <div class="row"><button class="ghost" id="demo">Pokaż podgląd demo dla wybranego dnia</button><button class="ghost" id="wipe">Usuń moje oznaczenia trafień</button></div>
@@ -194,7 +204,7 @@ const STAT = { won:['Wygrany','t-good'], lost:['Przegrany','t-bad'], open:['Otwa
 function couponCard(c, date, idx) {
   const [rl, rt, rc] = risk(c.prob), s = STAT[status(c)];
   return `<div class="coupon" style="--cc:${TCOLOR[c.target]}">
-    <div class="hd"><h3>Kupon ~${c.target}${c.of > 1 ? ` <span class="mut small">#${c.variant}</span>` : ''}</h3><span><span class="tag ${s[1]}">${s[0]}</span> <span class="tag ${rt}">ryzyko ${rl}</span></span></div>
+    <div class="hd"><h3>Kupon ~${c.target}${c.of > 1 ? ` <span class="mut small">#${c.variant}</span>` : ''}</h3><span><span class="tag ${s[1]}">${s[0]}</span> <span class="tag ${rt}">ryzyko ${rl}</span> <button class="ghost small copy" title="Kopiuj kupon" data-d="${date}" data-c="${idx}">Kopiuj</button></span></div>
     <div class="kpis">
       <div class="kpi"><b>${c.odds.toFixed(2)}</b><span>kurs łączny</span></div>
       <div class="kpi"><b class="${rc}">${(c.prob*100).toFixed(1)}%</b><span>szansa trafienia</span></div>
@@ -202,7 +212,7 @@ function couponCard(c, date, idx) {
     </div>` + c.legs.map((l, j) => `<div class="leg">
       <div class="body"><div class="m">${esc(l.league)} · ${fmtTime(l.time)} · ${esc(l.match)}</div>
         <div class="p"><span><span class="mk">${esc(l.market)}</span>${esc(l.pick)}</span><span>${l.odds.toFixed(2)} <span class="mut small">(${(l.p*100).toFixed(0)}%)</span></span></div>
-        <div class="m">najlepszy kurs: ${esc(l.book)}</div></div>
+        ${hasAnalysis(date, l.match) ? `<div class="m"><a href="#" class="alink" data-an="${esc(l.match)}" data-d="${date}">📊 analiza meczu</a></div>` : ''}</div>
       <button class="res ${l.res === 1 ? 'w' : l.res === 0 ? 'l' : ''}" title="Oznacz: trafiony / nietrafiony" data-d="${date}" data-c="${idx}" data-l="${j}">${l.res === 1 ? '✓' : l.res === 0 ? '✗' : '•'}</button>
     </div>`).join('') + `</div>`;
 }
@@ -219,7 +229,35 @@ function renderCoupons() {
   setStatus(d.demo ? 'Podgląd na danych przykładowych.' : `Wygenerowano ${new Date(d.generated).toLocaleString('pl-PL', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})} · meczów: ${d.events}`);
   box.innerHTML = `<div class="row" style="margin-bottom:14px"><span class="tag ${d.demo ? 't-mid' : 't-good'}">${d.demo ? 'DANE DEMO' : 'KURSY NA ŻYWO'}</span>
     <span class="mut small">${esc(fmtDate(sel))}</span></div>` +
-    (d.coupons.length ? `<div class="grid">${d.coupons.map((c,i) => couponCard(c, sel, i)).join('')}</div>` : `<div class="panel empty">Brak wystarczających danych, aby ułożyć kupony.</div>`);
+    (d.coupons.length ? TARGETS.map(t => {
+      const cs = d.coupons.map((c, i) => [c, i]).filter(([c]) => c.target === t);
+      return cs.length ? `<h2 class="gh" style="--cc:${TCOLOR[t]}">Kursy ~${t} <span class="mut small">${cs.length > 1 ? cs.length + ' propozycje' : '1 propozycja'}</span></h2><div class="grid">${cs.map(([c, i]) => couponCard(c, sel, i)).join('')}</div>` : '';
+    }).join('') : `<div class="panel empty">Brak wystarczających danych, aby ułożyć kupony.</div>`);
+}
+
+/* ---------- analizy meczów ---------- */
+let ana = {};
+async function loadAnalysis(d) {
+  if (d in ana) return ana[d];
+  ana[d] = null;
+  try { const r = await fetch('data/analysis/' + d + '.json?t=' + Date.now()); if (r.ok) ana[d] = await r.json(); } catch(e) {}
+  return ana[d];
+}
+const hasAnalysis = (d, m) => !!(ana[d] && ana[d].matches && ana[d].matches[m]);
+const SEC = [['forma','Kontekst i forma'],['taktyka','Starcie taktyczne'],['pojedynki','Kluczowe pojedynki i x-factor'],['stale_fragmenty','Stałe fragmenty gry i detale'],['scenariusze','Scenariusze meczowe'],['prognoza','Podsumowanie i prognoza']];
+const PEW = { wysoka:'t-good', srednia:'t-mid', niska:'t-bad' };
+function renderAnalysis(openMatch) {
+  const a = ana[sel], box = $('analysis');
+  if (!a || !a.matches || !Object.keys(a.matches).length) {
+    box.innerHTML = `<div class="panel empty">Brak analiz meczów na ${esc(fmtDate(sel))}. Pojawiają się razem z kuponami (wymagają klucza Claude API w ustawieniach automatu).</div>`; return;
+  }
+  const items = Object.entries(a.matches).sort((x, y) => x[1].time.localeCompare(y[1].time));
+  box.innerHTML = `<p class="mut small">Analizy przygotowane przez model ${esc(a.model || 'Claude')} z użyciem wyszukiwania w sieci. Mogą zawierać błędy, więc sprawdzaj składy i kontuzje tuż przed meczem.</p>` +
+    items.map(([m, x]) => `<details class="day an" data-m="${esc(m)}" ${m === openMatch ? 'open' : ''}><summary>${esc(m)}
+      <span class="mut small">${esc(x.league)} · ${fmtTime(x.time)}</span>
+      ${x.pewnosc ? `<span class="tag ${PEW[x.pewnosc] || 't-mid'}" style="margin-left:auto">pewność danych: ${esc(x.pewnosc)}</span>` : ''}</summary>
+      <div class="inner">${SEC.map(([k, t]) => x[k] ? `<h4>${t}</h4><p>${esc(x[k])}</p>` : '').join('')}
+      ${x.uwagi ? `<p class="mut small">${esc(x.uwagi)}</p>` : ''}</div></details>`).join('');
 }
 const setStatus = t => $('status').textContent = t;
 
@@ -230,9 +268,9 @@ function renderEvents() {
   const d = days[sel];
   if (!d) { $('tbl').innerHTML = '<tr><td class="empty">Brak danych na ten dzień.</td></tr>'; return; }
   const legs = d.legs.filter(l => !sf.value || l.mk === sf.value);
-  $('tbl').innerHTML = '<tr><th>Godz.</th><th>Mecz</th><th>Rynek</th><th>Typ</th><th>Szansa</th><th>Kurs</th><th>Bukmacher</th><th>Wartość</th></tr>' +
+  $('tbl').innerHTML = '<tr><th>Godz.</th><th>Mecz</th><th>Rynek</th><th>Typ</th><th>Szansa</th><th>Kurs</th><th>Wartość</th></tr>' +
     legs.map(l => `<tr><td>${fmtTime(l.time)}</td><td>${esc(l.match)}<div class="mut small">${esc(l.league)}</div></td><td>${esc(l.market)}</td><td>${esc(l.pick)}</td>
-      <td>${(l.p*100).toFixed(1)}%</td><td>${l.odds.toFixed(2)}</td><td>${esc(l.book)}</td>
+      <td>${(l.p*100).toFixed(1)}%</td><td>${l.odds.toFixed(2)}</td>
       <td class="${l.edge > 0.02 ? 'good' : ''}">${l.edge >= 0 ? '+' : ''}${(l.edge*100).toFixed(1)}%</td></tr>`).join('');
 }
 
@@ -266,12 +304,12 @@ async function renderHistory() {
   }).join('') : '<div class="panel empty">Historia jest pusta. Kupony pojawią się tu po pierwszym automatycznym generowaniu.</div>';
 }
 
-async function go() { $('date').value = sel; await loadDay(sel); renderCoupons(); renderEvents(); await renderHistory(); }
+async function go() { $('date').value = sel; await Promise.all([loadDay(sel), loadAnalysis(sel)]); renderCoupons(); renderAnalysis(); renderEvents(); await renderHistory(); }
 
 /* ---------- zdarzenia UI ---------- */
 function setTab(t) {
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
-  ['coupons','events','history','info'].forEach(x => $('tab-' + x).hidden = x !== t);
+  ['coupons','analysis','events','history','info'].forEach(x => $('tab-' + x).hidden = x !== t);
 }
 $('tabs').onclick = e => { if (e.target.dataset.tab) setTab(e.target.dataset.tab); };
 $('date').onchange = e => { if (e.target.value) { sel = e.target.value; go(); } };
@@ -296,6 +334,15 @@ document.addEventListener('click', e => {
       store.set('res', JSON.stringify(res));
     }
     renderCoupons(); renderHistory();
+    return;
+  }
+  const al = e.target.closest('.alink');
+  if (al) { e.preventDefault(); sel = al.dataset.d; setTab('analysis'); renderAnalysis(al.dataset.an); const t = document.querySelector('#analysis details[open]'); if (t) t.scrollIntoView({ block: 'start' }); return; }
+  const cp = e.target.closest('.copy');
+  if (cp) {
+    const c = days[cp.dataset.d].coupons[+cp.dataset.c];
+    const txt = `Kupon ~${c.target} (kurs ${c.odds.toFixed(2)}, szansa ${(c.prob*100).toFixed(1)}%)\n` + c.legs.map(l => `• ${l.match}: ${l.market} – ${l.pick} @ ${l.odds.toFixed(2)}`).join('\n');
+    (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => { cp.textContent = 'Skopiowano'; setTimeout(() => cp.textContent = 'Kopiuj', 1500); }).catch(() => { cp.textContent = 'Błąd'; });
     return;
   }
   const o = e.target.closest('[data-open]');
