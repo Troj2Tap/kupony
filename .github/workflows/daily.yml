@@ -6,8 +6,16 @@ on:
   workflow_dispatch:
     inputs:
       date:
-        description: 'Data RRRR-MM-DD (puste = automatycznie)'
+        description: 'Pierwszy dzień RRRR-MM-DD (puste = automatycznie)'
         required: false
+      days:
+        description: 'Ile kolejnych dni wygenerować (1-7)'
+        required: false
+        default: '1'
+      force:
+        description: 'Nadpisz istniejące dni (true/false)'
+        required: false
+        default: 'false'
 permissions:
   contents: write
   pages: write
@@ -23,6 +31,8 @@ jobs:
         run: node scripts/generate.cjs ${{ github.event.inputs.date }}
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          DAYS: ${{ github.event.inputs.days }}
+          FORCE: ${{ github.event.inputs.force }}
       - name: Zapisz dane w repozytorium
         run: |
           git config user.name "kupony-bot"
