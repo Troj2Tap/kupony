@@ -144,7 +144,7 @@ function applyRes(d, j) {
 async function loadDay(d) {
   if (days[d]) return days[d];
   if (!index.includes(d)) return null;
-  try { const r = await fetch('data/' + d + '.json'); if (r.ok) { const j = await r.json(); applyRes(d, j); days[d] = j; } } catch(e) {}
+  try { const r = await fetch('data/' + d + '.json?t=' + Date.now()); if (r.ok) { const j = await r.json(); applyRes(d, j); days[d] = j; } } catch(e) {}
   return days[d] || null;
 }
 
