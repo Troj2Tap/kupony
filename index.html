@@ -194,7 +194,7 @@ const STAT = { won:['Wygrany','t-good'], lost:['Przegrany','t-bad'], open:['Otwa
 function couponCard(c, date, idx) {
   const [rl, rt, rc] = risk(c.prob), s = STAT[status(c)];
   return `<div class="coupon" style="--cc:${TCOLOR[c.target]}">
-    <div class="hd"><h3>Kupon ~${c.target}</h3><span><span class="tag ${s[1]}">${s[0]}</span> <span class="tag ${rt}">ryzyko ${rl}</span></span></div>
+    <div class="hd"><h3>Kupon ~${c.target}${c.of > 1 ? ` <span class="mut small">#${c.variant}</span>` : ''}</h3><span><span class="tag ${s[1]}">${s[0]}</span> <span class="tag ${rt}">ryzyko ${rl}</span></span></div>
     <div class="kpis">
       <div class="kpi"><b>${c.odds.toFixed(2)}</b><span>kurs łączny</span></div>
       <div class="kpi"><b class="${rc}">${(c.prob*100).toFixed(1)}%</b><span>szansa trafienia</span></div>

@@ -52,9 +52,10 @@
   }
 
   /* kupon o zadanym kursie z maksymalną szansą trafienia, jeden typ na mecz */
-  function buildCoupon(legs, target) {
+  const legKey = l => l.eid + '|' + l.mk + '|' + l.pick;
+  function buildCoupon(legs, target, banned) {
     const byEvent = {};
-    legs.filter(l => l.odds >= 1.08 && l.p >= 0.25).forEach(l => (byEvent[l.eid] ||= []).push(l));
+    legs.filter(l => l.odds >= 1.08 && l.p >= 0.25 && !(banned && banned.has(legKey(l)))).forEach(l => (byEvent[l.eid] ||= []).push(l));
     const lo = Math.log(target * 0.93), hi = Math.log(target * 1.12), STEP = 0.015;
     let dp = new Map([[0, { lo: 0, lp: 0, legs: [] }]]);
     for (const cands of Object.values(byEvent)) {
@@ -82,7 +83,18 @@
 
   function build(events, cfg) {
     const legs = analyze(events, cfg);
-    const coupons = legs.length ? TARGETS.map(t => buildCoupon(legs, t)).filter(Boolean) : [];
+    const counts = Object.assign({ 3: 3, 5: 3, 10: 1, 50: 1 }, (cfg || {}).counts);
+    const coupons = [];
+    if (legs.length) for (const t of TARGETS) {
+      const banned = new Set(), n = counts[t] || 1, made = [];
+      for (let i = 0; i < n; i++) {
+        const c = buildCoupon(legs, t, banned);
+        if (!c) break;
+        c.legs.forEach(l => banned.add(legKey(l)));
+        made.push(c);
+      }
+      made.forEach((c, i) => { c.variant = i + 1; c.of = made.length; coupons.push(c); });
+    }
     return { legs, coupons };
   }
 
