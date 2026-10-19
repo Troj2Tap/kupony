@@ -187,7 +187,7 @@ async function generateDay(date, now, scheduled) {
   const out = {
     date, generated: new Date().toISOString(), demo: false, events: events.length, remaining,
     coupons: coupons.map(c => Object.assign({}, c, { legs: c.legs.map(l => Object.assign({}, l, { res: null })) })),
-    legs: legs.sort((a, b) => b.p - a.p).slice(0, 300)
+    legs: legs.sort((a, b) => b.p - a.p).slice(0, 700)
   };
   fs.writeFileSync(outFile, JSON.stringify(out));
   const files = fs.readdirSync(dataDir).filter(f => /^\d{4}-\d{2}-\d{2}\.json$/.test(f)).map(f => f.slice(0, 10)).sort();
