@@ -201,6 +201,14 @@ const risk = p => p >= 0.3 ? ['niskie','t-good','good'] : p >= 0.08 ? ['średnie
 const status = c => c.legs.some(l => l.res === 0) ? 'lost' : c.legs.every(l => l.res === 1) ? 'won' : 'open';
 const STAT = { won:['Wygrany','t-good'], lost:['Przegrany','t-bad'], open:['Otwarty','t-mid'] };
 
+const superbetUrl = m => 'https://www.google.com/search?q=' + encodeURIComponent('site:superbet.pl ' + m.replace(' – ', ' '));
+function couponSteps(c, date) {
+  const dt = parseKey(date).toLocaleDateString('pl-PL', { day: 'numeric', month: 'numeric' });
+  return `Kupon ~${c.target} | kurs łączny ${c.odds.toFixed(2)} | szansa ${(c.prob * 100).toFixed(1)}%\n` +
+    c.legs.map((l, i) => `${i + 1}. ${dt} ${fmtTime(l.time)} | ${l.match} | ${l.market}: ${l.pick} | kurs ok. ${l.odds.toFixed(2)}`).join('\n') +
+    '\nWpisz każdy mecz w Superbet, wybierz podany rynek i typ, a potem sprawdź kurs i dodaj do kuponu.';
+}
+
 function couponCard(c, date, idx) {
   const [rl, rt, rc] = risk(c.prob), s = STAT[status(c)];
   return `<div class="coupon" style="--cc:${TCOLOR[c.target]}">
@@ -212,7 +220,7 @@ function couponCard(c, date, idx) {
     </div>` + c.legs.map((l, j) => `<div class="leg">
       <div class="body"><div class="m">${esc(l.league)} · ${fmtTime(l.time)} · ${esc(l.match)}</div>
         <div class="p"><span><span class="mk">${esc(l.market)}</span>${esc(l.pick)}</span><span>${l.odds.toFixed(2)} <span class="mut small">(${(l.p*100).toFixed(0)}%)</span></span></div>
-        ${hasAnalysis(date, l.match) ? `<div class="m"><a href="#" class="alink" data-an="${esc(l.match)}" data-d="${date}">📊 analiza meczu</a></div>` : ''}</div>
+        <div class="m">${hasAnalysis(date, l.match) ? `<a href="#" class="alink" data-an="${esc(l.match)}" data-d="${date}">📊 analiza</a> · ` : ''}<a class="alink slink" target="_blank" rel="noopener" title="Szuka meczu na stronie Superbet przez Google" href="${superbetUrl(l.match)}">🔎 Superbet</a></div></div>
       <button class="res ${l.res === 1 ? 'w' : l.res === 0 ? 'l' : ''}" title="Oznacz: trafiony / nietrafiony" data-d="${date}" data-c="${idx}" data-l="${j}">${l.res === 1 ? '✓' : l.res === 0 ? '✗' : '•'}</button>
     </div>`).join('') + `</div>`;
 }
@@ -389,12 +397,12 @@ document.addEventListener('click', e => {
     renderCoupons(); renderHistory();
     return;
   }
-  const al = e.target.closest('.alink');
+  const al = e.target.closest('.alink:not(.slink)');
   if (al) { e.preventDefault(); sel = al.dataset.d; setTab('analysis'); renderAnalysis(al.dataset.an); const t = document.querySelector('#analysis details[open]'); if (t) t.scrollIntoView({ block: 'start' }); return; }
   const cp = e.target.closest('.copy');
   if (cp) {
     const c = days[cp.dataset.d].coupons[+cp.dataset.c];
-    const txt = `Kupon ~${c.target} (kurs ${c.odds.toFixed(2)}, szansa ${(c.prob*100).toFixed(1)}%)\n` + c.legs.map(l => `• ${l.match}: ${l.market} – ${l.pick} @ ${l.odds.toFixed(2)}`).join('\n');
+    const txt = couponSteps(c, cp.dataset.d);
     (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => { cp.textContent = 'Skopiowano'; setTimeout(() => cp.textContent = 'Kopiuj', 1500); }).catch(() => { cp.textContent = 'Błąd'; });
     return;
   }
