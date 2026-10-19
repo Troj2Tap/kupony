@@ -44,13 +44,18 @@ async function main() {
   const now = nowWarsaw(), scheduled = process.env.GITHUB_EVENT_NAME === 'schedule';
   const h2 = (cfg.runHour + 1) % 24;
   if (scheduled && now.hour !== cfg.runHour && now.hour !== h2) { console.log('Nie ta godzina (' + now.hour + '), pomijam.'); return; }
-  const date = process.argv[2] || (scheduled ? (now.hour === cfg.runHour ? addDays(now.date, 1) : now.date) : (now.hour >= 12 ? addDays(now.date, 1) : now.date));
+  const first = process.argv[2] || (scheduled ? (now.hour === cfg.runHour ? addDays(now.date, 1) : now.date) : (now.hour >= 12 ? addDays(now.date, 1) : now.date));
+  const nDays = Math.max(1, Math.min(7, parseInt(process.env.DAYS, 10) || 1));
+  for (let i = 0; i < nDays; i++) await generateDay(addDays(first, i), now, scheduled);
+}
+
+async function generateDay(date, now, scheduled) {
   const dataDir = path.join(ROOT, 'data'); fs.mkdirSync(dataDir, { recursive: true });
   const outFile = path.join(dataDir, date + '.json');
-  if (fs.existsSync(outFile) && !process.env.FORCE) { console.log('Dzień ' + date + ' już wygenerowany, pomijam.'); return; }
+  if (fs.existsSync(outFile) && process.env.FORCE !== 'true') { console.log('Dzień ' + date + ' już wygenerowany, pomijam.'); return; }
   console.log('Generuję kupony na ' + date);
 
-  const from = warsawMidnight(date), to = warsawMidnight(addDays(date, 1));
+  const from = date === now.date ? new Date() : warsawMidnight(date), to = warsawMidnight(addDays(date, 1));
   const win = { commenceTimeFrom: iso(from), commenceTimeTo: iso(to), dateFormat: 'iso' };
   const sports = (await api('/sports/')).filter(s => s.active && !s.has_outrights && s.key.startsWith('soccer_')).sort((a, b) => prio(a.key) - prio(b.key));
 
@@ -85,6 +90,7 @@ async function main() {
   }
   events.forEach(e => { delete e.lp; delete e.sport; });
 
+  if (!events.length) { console.log('Brak meczów z kursami na ' + date + ', nic nie zapisuję.'); return; }
   const { legs, coupons } = Core.build(events, { minBooks: cfg.minBooks });
   const out = {
     date, generated: new Date().toISOString(), demo: false, events: events.length, remaining,
